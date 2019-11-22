@@ -1,14 +1,36 @@
 package Machines;
 
-import Utils.Orientation;
+import FactoryFloor.Tile;
 
-public abstract class Machine {
-    private static final int MODULES = 4;
-//    private final Orientation ORIENTATION;
+import java.util.ArrayList;
 
-    protected Machine(Orientation orientation) {
-//        ORIENTATION = orientation;
+public class Machine implements Comparable{
+    ArrayList<Tile> grids;
+    Shapes shape;
+
+    public Machine(ArrayList<Tile> grids, Shapes shape){
+        this.grids = grids;
+        this.shape = shape;
     }
 
+    public ArrayList<Tile> getGrids() {
+        return grids;
+    }
 
+    public Shapes getShape() {
+        return shape;
+    }
+
+    @Override
+    public int compareTo(Object o) {
+        Machine other = (Machine) o;
+        Tile thisTile = this.grids.get(0);
+        Tile otherTile = other.grids.get(0);
+        return thisTile.compareTo(otherTile);
+    }
+
+    @Override
+    public String toString(){
+        return "[" + grids.toString() + ", " + shape + "]";
+    }
 }
