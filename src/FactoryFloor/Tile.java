@@ -1,5 +1,6 @@
 package FactoryFloor;
 
+import Machines.Machine;
 import Machines.Shapes;
 import Utils.Orientation;
 
@@ -9,18 +10,26 @@ import java.util.ArrayList;
 public class Tile implements Comparable{
     private Tile northTile, eastTile, southTile, westTile;
     private boolean occupied;
-    private Shapes shape;
+    private Machine machine;
     private int x, y;
 
     public Tile(int x, int y) {
         this.x = x;
         this.y = y;
-        shape = null;
+        machine = null;
         northTile = null;
         eastTile = null;
         southTile = null;
         westTile = null;
         occupied = false;
+    }
+
+    public int getX(){
+        return x;
+    }
+
+    public int getY(){
+        return y;
     }
 
     void setTile(Orientation direction, Tile t){
@@ -35,7 +44,7 @@ public class Tile implements Comparable{
         }
     }
 
-    Tile getTile(Orientation direction){
+    Tile getNeighbor(Orientation direction){
         if (direction == Orientation.N){
             return northTile;
         } else if (direction == Orientation.E){
@@ -49,8 +58,55 @@ public class Tile implements Comparable{
         }
     }
 
-    Shapes getShape(){
-        return shape;
+
+    Tile getNeighbor(Orientation direction, int distance){
+        if (distance > 0) {
+            if (direction == Orientation.N) {
+                distance --;
+                return (northTile == null)? null : northTile.getNeighbor(direction, distance);
+            } else if (direction == Orientation.E) {
+                distance --;
+                return (eastTile == null)? null : eastTile.getNeighbor(direction, distance);
+            } else if (direction == Orientation.S) {
+                distance --;
+                return (southTile == null)? null : southTile.getNeighbor(direction, distance);
+            } else if (direction == Orientation.W) {
+                distance --;
+                return (westTile == null)? null : westTile.getNeighbor(direction, distance);
+            } else {
+                return null;
+            }
+        } else {
+            return this;
+        }
+    }
+
+    Tile getNeighbor (ArrayDeque<Orientation> directions){
+        if (!directions.isEmpty()) {
+            Orientation direction = directions.pop();
+            if (direction == Orientation.N) {
+                return (northTile == null)? null : northTile.getNeighbor(directions);
+            } else if (direction == Orientation.E) {
+                return (eastTile == null)? null : eastTile.getNeighbor(directions);
+            } else if (direction == Orientation.S) {
+                return (southTile == null)? null : southTile.getNeighbor(directions);
+            } else if (direction == Orientation.W) {
+                return (westTile == null)? null : westTile.getNeighbor(directions);
+            } else {
+                return null;
+            }
+        } else {
+            return this;
+        }
+    }
+
+    public Machine getMachine(){
+        return machine;
+    }
+
+    public void clear(){
+        this.occupied = false;
+        this.machine = null;
     }
 
     boolean placeable(ArrayDeque<Orientation> nextTiles) {
@@ -88,28 +144,27 @@ public class Tile implements Comparable{
         }
     }
 
-    ArrayList<Tile> place(ArrayDeque<Orientation> nextTiles, Shapes s){
-        this.shape = s;
+    ArrayList<Tile> place(ArrayDeque<Orientation> nextTiles, Shapes s, Orientation o){
+//        this.shape = s;
         this.occupied = true;
         if (!nextTiles.isEmpty()) {
             Orientation orientation = nextTiles.pop();
+            ArrayList<Tile> lst;
             if (orientation == Orientation.N) {
-                ArrayList<Tile> lst = northTile.place(nextTiles, s);
-                lst.add(0, this);
-                return lst;
+                lst = northTile.place(nextTiles, s, o);
             } else if (orientation == Orientation.E) {
-                ArrayList<Tile> lst = eastTile.place(nextTiles, s);
-                lst.add(0, this);
-                return lst;
+                lst = eastTile.place(nextTiles, s, o);
             } else if (orientation == Orientation.S) {
-                ArrayList<Tile> lst = southTile.place(nextTiles, s);
-                lst.add(0, this);
-                return lst;
+                lst = southTile.place(nextTiles, s, o);
             } else {
-                ArrayList<Tile> lst = westTile.place(nextTiles, s);
-                lst.add(0, this);
-                return lst;
+                lst = westTile.place(nextTiles, s, o);
             }
+            lst.add(0, this);
+            if (lst.size() == 4){
+                Machine m = new Machine(lst, s, o);
+                lst.forEach(x -> x.machine = m);
+            }
+            return lst;
         } else {
             ArrayList<Tile> lst = new ArrayList<>();
             lst.add(this);
@@ -117,7 +172,7 @@ public class Tile implements Comparable{
         }
     }
 
-    boolean isOccupied(){
+    public boolean isOccupied(){
         return occupied;
     }
 

@@ -4,7 +4,7 @@ import Utils.Orientation;
 
 import java.util.ArrayDeque;
 import java.util.Arrays;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 
@@ -14,64 +14,65 @@ public interface Machines {
      * [N, E, S, W]
      * <p>
      * square
-     * [X][E]
-     * [W][S]
+     * [N][E]
+     * [X][S]
      * <p>
      * elbowR
-     *       [N]
-     * [X][E][E]
+     * [N][E]
+     * [N]
+     * [X]
      * <p>
      * elbowL
-     * [X][E][E]
-     *       [S]
+     * [S][N]
+     *    [N]
+     *    [X]
      * <p>
      * rod
-     * [X][E][E][E]
+     * [N]
+     * [N]
+     * [N]
+     * [X]
      * <p>
      * kinkR
+     *    [N]
+     * [N][E]
      * [X]
-     * [S][E]
-     *    [S]
      * <p>
      * kinkL
+     * [N]
+     * [W][N]
      *    [X]
-     * [W][S]
-     * [S]
      */
 
     Orientation[] DIRECTIONS = {Orientation.N, Orientation.E, Orientation.S, Orientation.W};
+    ThreadLocalRandom r = ThreadLocalRandom.current();
 
     ArrayDeque<Orientation> SQUARE = new ArrayDeque<>(
-            Arrays.asList(Orientation.E, Orientation.S, Orientation.W));
+            Arrays.asList(Orientation.N, Orientation.E, Orientation.S));
 
     ArrayDeque<Orientation> ELBOWR = new ArrayDeque<>(
-            Arrays.asList(Orientation.E, Orientation.E, Orientation.N));
+            Arrays.asList(Orientation.N, Orientation.N, Orientation.E));
 
     ArrayDeque<Orientation> ELBOWL = new ArrayDeque<>(
-            Arrays.asList(Orientation.E, Orientation.E, Orientation.S));
+            Arrays.asList(Orientation.N, Orientation.N, Orientation.W));
 
     ArrayDeque<Orientation> ROD = new ArrayDeque<>(
-            Arrays.asList(Orientation.E, Orientation.E, Orientation.E));
+            Arrays.asList(Orientation.N, Orientation.N, Orientation.N));
 
     ArrayDeque<Orientation> KINKR = new ArrayDeque<>(
-            Arrays.asList(Orientation.S, Orientation.E, Orientation.S));
+            Arrays.asList(Orientation.N, Orientation.E, Orientation.N));
 
     ArrayDeque<Orientation> KINKL = new ArrayDeque<>(
-            Arrays.asList(Orientation.S, Orientation.W, Orientation.S));
+            Arrays.asList(Orientation.N, Orientation.W, Orientation.N));
 
-    static Orientation getRotated(Orientation orientation, Rotations rotation) {
-        int index = Arrays.asList(DIRECTIONS).indexOf(orientation);
-        if (rotation == Rotations.CW) {
-            index = (index + 1) % DIRECTIONS.length;
-        } else {
-            index = (index - 1) % DIRECTIONS.length;
-        }
-        return DIRECTIONS[index];
+    static Orientation randomOrientation() {
+        return DIRECTIONS[r.nextInt(DIRECTIONS.length)];
     }
 
-    static Orientation getRandomOrient(){
-        int index = new Random().nextInt(4);
-        return DIRECTIONS[index];
+    static Orientation rotate(Orientation orientation, int rotation) {
+        int index = Arrays.asList(DIRECTIONS).indexOf(orientation);
+        index = (index + rotation) % DIRECTIONS.length;
+        return DIRECTIONS[Math.abs(index)];
     }
 
     static ArrayDeque<Orientation> getOrientationArrayDeque(Shapes s) {
@@ -92,9 +93,18 @@ public interface Machines {
         return orientations;
     }
 
-    static ArrayDeque<Orientation> rotateOrientations(ArrayDeque<Orientation> orientations, Rotations rotation) {
-        return orientations.stream().map(x -> getRotated(x, rotation))
+    static int getOrientationDifference(Orientation o1, Orientation o2){
+        int index1 = Arrays.asList(DIRECTIONS).indexOf(o1);
+        int index2 = Arrays.asList(DIRECTIONS).indexOf(o2);
+        return index2 - index1;
+    }
+
+    static ArrayDeque<Orientation> rotateOrientations(ArrayDeque<Orientation> orientations, Orientation direction) {
+        Orientation leadOrientation = orientations.getFirst();
+        int difference = getOrientationDifference(leadOrientation, direction);
+        return orientations.stream().map(x -> rotate(x, difference))
                 .collect(Collectors.toCollection(ArrayDeque::new));
+
     }
 
     static char getDisplayChar(Shapes s) {
