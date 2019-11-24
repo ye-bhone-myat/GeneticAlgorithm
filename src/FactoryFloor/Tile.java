@@ -1,16 +1,17 @@
 package FactoryFloor;
 
-import Machines.Machine;
-import Machines.Shapes;
-import Utils.Orientation;
+import Machine.Machines.AbstractMachine;
+import Machine.Machines.MachineFactory;
+import Machine.Shapes;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
+import java.util.*;
+
+import Utils.Orientation;
 
 public class Tile implements Comparable{
     private Tile northTile, eastTile, southTile, westTile;
     private boolean occupied;
-    private Machine machine;
+    private AbstractMachine machine;
     private int x, y;
 
     public Tile(int x, int y) {
@@ -44,7 +45,7 @@ public class Tile implements Comparable{
         }
     }
 
-    Tile getNeighbor(Orientation direction){
+    public Tile getNeighbor(Orientation direction){
         if (direction == Orientation.N){
             return northTile;
         } else if (direction == Orientation.E){
@@ -53,9 +54,8 @@ public class Tile implements Comparable{
             return southTile;
         } else if (direction == Orientation.W){
             return westTile;
-        } else {
-            return null;
         }
+        return null;
     }
 
 
@@ -100,7 +100,11 @@ public class Tile implements Comparable{
         }
     }
 
-    public Machine getMachine(){
+    public ArrayList<Tile> getNeighbors(){
+        return new ArrayList<>(Arrays.asList(northTile, eastTile, southTile, westTile));
+    }
+
+    public AbstractMachine getMachine(){
         return machine;
     }
 
@@ -161,7 +165,7 @@ public class Tile implements Comparable{
             }
             lst.add(0, this);
             if (lst.size() == 4){
-                Machine m = new Machine(lst, s, o);
+                AbstractMachine m = MachineFactory.makeMachine(lst, s, o);
                 lst.forEach(x -> x.machine = m);
             }
             return lst;
@@ -174,6 +178,22 @@ public class Tile implements Comparable{
 
     public boolean isOccupied(){
         return occupied;
+    }
+
+    public Tile getClosestTile(ArrayList<Tile> tiles){
+        HashMap<Double, Tile> distances = new HashMap<>();
+        ArrayList<Double> keys = new ArrayList<>();
+        tiles.forEach(x -> {
+            Double d = getEuclideanDistance(x);
+            keys.add(d);
+            distances.put(d, x);
+        });
+        keys.sort(Comparator.naturalOrder());
+        return distances.get(keys.get(0));
+    }
+
+    public double getEuclideanDistance(Tile t){
+        return Math.sqrt(Math.pow(t.x - x, 2) + Math.pow(t.y - y, 2));
     }
 
     @Override

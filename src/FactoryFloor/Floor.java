@@ -1,16 +1,17 @@
 package FactoryFloor;
 
-import Machines.*;
+import Machine.Machines.AbstractMachine;
 import Utils.Orientation;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.Comparator.*;
+import Machine.*;
 
-public class Floor implements Machines, Comparable {
+public class Floor implements Comparable {
     private Tile[][] tiles;
-    private ArrayList<Machine> machines;
+    private ArrayList<AbstractMachine> machines;
     private int ID;
 
     public Floor(int floorwidth, int floorlength) {
@@ -81,38 +82,38 @@ public class Floor implements Machines, Comparable {
     }
 
     public boolean place(Shapes shape, int x, int y) {
-        ArrayDeque<Orientation> orientationArrayDeque = Machines.getOrientationArrayDeque(shape);
-        Orientation o = Machines.randomOrientation();
-        orientationArrayDeque = Machines.rotateOrientations(orientationArrayDeque, o);
+        ArrayDeque<Orientation> orientationArrayDeque = Transformations.getOrientationArrayDeque(shape);
+        Orientation o = Transformations.randomOrientation();
+        orientationArrayDeque = Transformations.rotateOrientations(orientationArrayDeque, o);
         int i = 0;
         boolean placeable = false;
         while (i < 4 && !(placeable = tiles[y][x].placeable(orientationArrayDeque.clone()))) {
             ++i;
-            o = Machines.randomOrientation();
-            orientationArrayDeque = Machines.rotateOrientations(orientationArrayDeque, o);
+            o = Transformations.randomOrientation();
+            orientationArrayDeque = Transformations.rotateOrientations(orientationArrayDeque, o);
         }
 //        ArrayList<Tile> addedShape;
         if (placeable) {
             tiles[y][x].place(orientationArrayDeque.clone(), shape, o);
-//            Machine machine = new Machine(addedShape, shape);
+//            AbstractMachine machine = new AbstractMachine(addedShape, shape);
             machines.add(tiles[y][x].getMachine());
         }
         return placeable;
     }
 
     public boolean place(Shapes shape, int x, int y, Orientation orientation) {
-        ArrayDeque<Orientation> orientationArrayDeque = Machines.getOrientationArrayDeque(shape);
-        orientationArrayDeque = Machines.rotateOrientations(orientationArrayDeque, orientation);
+        ArrayDeque<Orientation> orientationArrayDeque = Transformations.getOrientationArrayDeque(shape);
+        orientationArrayDeque = Transformations.rotateOrientations(orientationArrayDeque, orientation);
         boolean placeable = tiles[y][x].placeable(orientationArrayDeque.clone());
         if (placeable) {
             tiles[y][x].place(orientationArrayDeque.clone(), shape, orientation);
-//            Machine machine = new Machine(addedShape, shape);
+//            AbstractMachine machine = new AbstractMachine(addedShape, shape);
             machines.add(tiles[y][x].getMachine());
         }
         return placeable;
     }
 
-    public ArrayList<Machine> getMachines() {
+    public ArrayList<AbstractMachine> getMachines() {
         machines.sort(naturalOrder());
         return machines;
     }
@@ -133,32 +134,32 @@ public class Floor implements Machines, Comparable {
         ArrayList<Tile> tilesArrayList = getTilesList(start, end);
         tilesArrayList.forEach(tile -> {
             if (tile.isOccupied()) {
-                Machine tm = tile.getMachine();
+                AbstractMachine tm = tile.getMachine();
                 tm.getGrids().forEach(Tile::clear);
                 machines.remove(tm);
             }
         });
     }
 
-    public ArrayList<Machine> removeMachines(int start, int end) {
+    public ArrayList<AbstractMachine> removeMachines(int start, int end) {
         ArrayList<Tile> tilesArrayList = getTilesList(start, end);
         return tilesArrayList.stream().filter(Tile::isOccupied).map(tile -> {
-            Machine tm = tile.getMachine();
+            AbstractMachine tm = tile.getMachine();
             tm.getGrids().forEach(Tile::clear);
             machines.remove(tm);
             return tm;
-        }).sorted((Comparator<Machine>) (m1, m2) -> m1.compareTo(m2))
+        }).sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
     /**
-     * Attempts to add all the Machine objs in
+     * Attempts to add all the AbstractMachine objs in
      * machineArrayList
-     * @param machineArrayList list of Machine objs to be added
-     * @return # of Machine objs successfully added
+     * @param machineArrayList list of AbstractMachine objs to be added
+     * @return # of AbstractMachine objs successfully added
      */
-    public int addMachines(ArrayList<Machine> machineArrayList) {
-        return (int) machineArrayList.stream().sorted((Comparator<Machine>) (m1, m2) -> m1.compareTo(m2))
+    public int addMachines(ArrayList<AbstractMachine> machineArrayList) {
+        return (int) machineArrayList.stream().sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
                 .map(machine ->
             place(machine.getShape(),
                     machine.getLeadTile().getX(), machine.getLeadTile().getY(),
@@ -175,11 +176,21 @@ public class Floor implements Machines, Comparable {
         for (int i = 0; i < tiles.length; ++i) {
             System.out.printf("%2d", i);
             for (int j = 0; j < tiles[i].length; ++j) {
-                char x = (tiles[i][j].isOccupied()) ? Machines.getDisplayChar(tiles[i][j].getMachine().getShape()) : ' ';
+                char x = (tiles[i][j].isOccupied()) ? Transformations.getDisplayChar(tiles[i][j].getMachine().getShape()) : ' ';
                 System.out.print(" " + x + " ");
             }
             System.out.println();
         }
+    }
+
+    public int calculateScore(){
+        int score = 0;
+        ArrayDeque<AbstractMachine> mDeque = new ArrayDeque<>(machines);
+        while (!mDeque.isEmpty()){
+            AbstractMachine machine = mDeque.pop();
+            score += machine.evaluate();
+        }
+        return score;
     }
 
     @Override
