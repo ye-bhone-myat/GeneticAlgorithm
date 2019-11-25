@@ -15,11 +15,11 @@ class ElbowR extends AbstractMachine {
     @Override
     public int evaluate() {
         int score = 0;
-        int nulls = (int) getSurroundingTiles().stream().filter(Objects::isNull).count();
-        int nullScore = (nulls > 4)? 4:nulls;
+        int nulls = countNulls();
+        int nullScore = (nulls > 4) ? 4 : nulls;
 
-        for (AbstractMachine m : getSurroundingMachineSet()){
-            switch(m.shape){
+        for (AbstractMachine m : getSurroundingMachineSet()) {
+            switch (m.shape) {
                 case ElbowR:
                     score += 2;
                     break;

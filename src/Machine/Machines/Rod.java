@@ -15,7 +15,7 @@ class Rod extends AbstractMachine {
     @Override
     public int evaluate() {
         int score = getSurroundingMachineSet().size();
-        int nulls = (int) getSurroundingTiles().stream().filter(Objects::isNull).count();
+        int nulls = countNulls();
 
 
         return score - nulls;

@@ -40,7 +40,9 @@ public abstract class AbstractMachine implements Comparable{
         grids.forEach(tile -> {
             tile.getNeighbors().stream().filter(x -> x == null && grids.contains(x))
 //                    .collect(HashSet::new);
-                    .forEach(x -> machines.add(x.getMachine()));
+                    .forEach(x -> {
+                        System.out.println(x);
+                        machines.add(x.getMachine());});
         });
         return machines;
     }
@@ -49,6 +51,25 @@ public abstract class AbstractMachine implements Comparable{
         return grids.stream().flatMap(tile -> tile.getNeighbors().stream())
                 .filter(tile -> !grids.contains(tile))
                 .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    int countNulls(){
+       return (int) getSurroundingTiles().stream().filter(x ->{
+            if (x == null){
+                return true;
+            } else {
+                if (x.getMachine() == null){
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        }).count();
+    }
+
+    int countNotNulls(){
+        return (int) getSurroundingTiles().stream().filter(x ->
+            x != null && x.getMachine() != null).count();
     }
 
     public abstract int evaluate();

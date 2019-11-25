@@ -15,7 +15,7 @@ class KinkR extends AbstractMachine {
     @Override
     public int evaluate() {
         int score = 0;
-        int nulls = (int) getSurroundingTiles().stream().filter(Objects::isNull).count();
+        int nulls = countNulls();
         int nullScore = (nulls > 4)? 4:nulls;
 
         for (AbstractMachine m : getSurroundingMachineSet()){

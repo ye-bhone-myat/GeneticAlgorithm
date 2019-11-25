@@ -4,21 +4,38 @@ import Machine.Machines.AbstractMachine;
 import Utils.Orientation;
 
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static java.util.Comparator.*;
+
 import Machine.*;
 
 public class Floor implements Comparable {
+    private int height, width;
     private Tile[][] tiles;
     private ArrayList<AbstractMachine> machines;
-    private int ID;
+    private final int ID;
+    private int score;
+    ReentrantLock lock;
+    private boolean isSwapped;
+    private ThreadLocalRandom r;
 
     public Floor(int floorwidth, int floorlength) {
+        this.height = floorlength;
+        this.width = floorwidth;
         tiles = new Tile[floorlength][floorwidth];
         machines = new ArrayList<>();
         generateTiles();
         this.ID = IDGenerator.nextID();
+        this.score = 0;
+        lock = new ReentrantLock();
+        isSwapped = false;
+    }
+
+    public int getScore() {
+        return score;
     }
 
     public int getID() {
@@ -98,6 +115,7 @@ public class Floor implements Comparable {
 //            AbstractMachine machine = new AbstractMachine(addedShape, shape);
             machines.add(tiles[y][x].getMachine());
         }
+        calculateScore();
         return placeable;
     }
 
@@ -110,6 +128,7 @@ public class Floor implements Comparable {
 //            AbstractMachine machine = new AbstractMachine(addedShape, shape);
             machines.add(tiles[y][x].getMachine());
         }
+        calculateScore();
         return placeable;
     }
 
@@ -152,24 +171,46 @@ public class Floor implements Comparable {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    public void swap(Floor f2) {
+        r = ThreadLocalRandom.current();
+        int bound = (height * width) /2;
+        int start = r.nextInt(bound);
+        int end = r.nextInt(bound) + start + 1;
+        ArrayList<AbstractMachine> machines1 = this.removeMachines(start, end);
+        ArrayList<AbstractMachine> machines2 = f2.removeMachines(start, end);
+        this.clearMachines(start, end);
+        f2.clearMachines(start, end);
+        this.addMachines(machines2);
+        f2.addMachines(machines1);
+        this.calculateScore();
+        f2.calculateScore();
+        this.isSwapped = true;
+        f2.isSwapped = true;
+    }
+
+    public boolean isSwapped() {
+        return isSwapped;
+    }
+
     /**
      * Attempts to add all the AbstractMachine objs in
      * machineArrayList
+     *
      * @param machineArrayList list of AbstractMachine objs to be added
      * @return # of AbstractMachine objs successfully added
      */
     public int addMachines(ArrayList<AbstractMachine> machineArrayList) {
         return (int) machineArrayList.stream().sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
                 .map(machine ->
-            place(machine.getShape(),
-                    machine.getLeadTile().getX(), machine.getLeadTile().getY(),
-                    machine.getOrientation())
-            ).filter(x -> x).count();
+                        place(machine.getShape(),
+                                machine.getLeadTile().getX(), machine.getLeadTile().getY(),
+                                machine.getOrientation())
+                ).filter(x -> x).count();
     }
 
     public void display() {
         System.out.print(" ");
-        for (int i = 0; i < tiles.length; ++i){
+        for (int i = 0; i < tiles.length; ++i) {
             System.out.printf("%3d", i);
         }
         System.out.println();
@@ -183,20 +224,22 @@ public class Floor implements Comparable {
         }
     }
 
-    public int calculateScore(){
+    public int calculateScore() {
         int score = 0;
         ArrayDeque<AbstractMachine> mDeque = new ArrayDeque<>(machines);
-        while (!mDeque.isEmpty()){
+        while (!mDeque.isEmpty()) {
             AbstractMachine machine = mDeque.pop();
             score += machine.evaluate();
         }
+        score += machines.size();
+        this.score = score;
         return score;
     }
 
     @Override
     public int compareTo(Object o) {
         Floor other = (Floor) o;
-        return this.ID - other.ID;
+        return other.score - this.score;
     }
 
 }
