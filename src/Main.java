@@ -15,6 +15,11 @@ public class Main {
         int roomHeight = 16;
         int NSOLUTIONS = Integer.parseInt(args[0]);
         int nThreads = Integer.parseInt(args[1]);
+        int masScore = Integer.parseInt(args[2]);
+        boolean debug = (args.length > 3);
+        long startTime = System.currentTimeMillis();
+
+        System.out.println("Using " + nThreads + " threads on pool of " + NSOLUTIONS + " solutions...");
 //        Floor floor1 = new Floor(roomWidth, roomHeight);
 //        Floor floor2 = new Floor(roomWidth, roomHeight);
         ArrayList<Shapes> shapes = new ArrayList<>(Arrays.asList(
@@ -53,12 +58,12 @@ public class Main {
         CountDownLatch latch;
         int lastMax = 0;
         String thread = Thread.currentThread().getName();
-        while(floors.get(0).getScore() < 193) {
+        while(floors.get(0).getScore() < masScore) {
             lastMax = floors.get(0).getScore();
             latch = new CountDownLatch(NSOLUTIONS);
 //            System.out.println("Submitting tasks");
             for (int i = 0; i < NSOLUTIONS; ++i) {
-                executor.execute(new FloorRunnable(floors, latch));
+                executor.execute(new FloorRunnable(floors, latch, debug));
             }
 //            System.out.println("Thread [" + thread + "] awaiting latch...");
             try {
@@ -85,10 +90,19 @@ public class Main {
                 floors.add(f);
             }
             floors.sort(Comparator.naturalOrder());
+            floors.forEach(Floor::resetSwapped);
             generation++;
-            System.out.print("===== Generation [" + generation + "] ===== ");
+            if (debug) {
+                System.out.print("===== Generation [" + generation + "] ===== ");
 //            floors.get(0).display();
-            System.out.println("Score: " + floors.get(0).getScore());
+                System.out.println("Score: " + floors.get(0).getScore());
+            } else {
+                if (generation % 20 == 0){
+                    System.out.print("===== Generation [" + generation + "] ===== ");
+//            floors.get(0).display();
+                    System.out.println("Score: " + floors.get(0).getScore());
+                }
+            }
         }
 
         executor.shutdown();
@@ -101,6 +115,11 @@ public class Main {
         System.out.println("Score: " + floors.get(0).getScore());
         System.out.println("Scores: ");
         floors.forEach(f -> System.out.println(f.getScore()));
+        long endTime = System.currentTimeMillis() - startTime;
+        double durationSeconds = ((double) endTime) / 1000;
+        System.out.println("Time elapsed: " + durationSeconds + " seconds");
+        System.out.println(NSOLUTIONS/nThreads + " Solutions per thread");
+        System.out.println("Average " + endTime/NSOLUTIONS + " milliseconds per solution");
 
 //        int max = 4;
 

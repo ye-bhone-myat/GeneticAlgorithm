@@ -14,6 +14,6 @@ class Square extends AbstractMachine {
 
     @Override
     public int evaluate() {
-        return countNotNulls();
+        return getSurroundingMachineSet().size();
     }
 }

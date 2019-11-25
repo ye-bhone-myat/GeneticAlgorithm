@@ -38,6 +38,10 @@ public class Floor implements Comparable {
         return score;
     }
 
+    public void resetSwapped(){
+        isSwapped = false;
+    }
+
     public int getID() {
         return ID;
     }
