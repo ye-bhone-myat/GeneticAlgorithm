@@ -5,6 +5,7 @@ import Utils.Orientation;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -38,7 +39,7 @@ public class Floor implements Comparable {
         return score;
     }
 
-    public void resetSwapped(){
+    public void resetSwapped() {
         isSwapped = false;
     }
 
@@ -166,18 +167,20 @@ public class Floor implements Comparable {
 
     public ArrayList<AbstractMachine> removeMachines(int start, int end) {
         ArrayList<Tile> tilesArrayList = getTilesList(start, end);
-        return tilesArrayList.stream().filter(Tile::isOccupied).map(tile -> {
+        ArrayList<AbstractMachine> abstractMachines = tilesArrayList.stream().filter(Tile::isOccupied).map(tile -> {
             AbstractMachine tm = tile.getMachine();
             tm.getGrids().forEach(Tile::clear);
             machines.remove(tm);
             return tm;
         }).sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
                 .collect(Collectors.toCollection(ArrayList::new));
+        lock.unlock();
+        return abstractMachines;
     }
 
     public void swap(Floor f2) {
         r = ThreadLocalRandom.current();
-        int bound = (height * width) /2;
+        int bound = (height * width) / 2;
         int start = r.nextInt(bound);
         int end = r.nextInt(bound) + start + 1;
         ArrayList<AbstractMachine> machines1 = this.removeMachines(start, end);
@@ -186,8 +189,8 @@ public class Floor implements Comparable {
         f2.clearMachines(start, end);
         this.addMachines(machines2);
         f2.addMachines(machines1);
-        this.calculateScore();
-        f2.calculateScore();
+//            this.calculateScore();
+//            f2.calculateScore();
         this.isSwapped = true;
         f2.isSwapped = true;
     }
@@ -204,12 +207,12 @@ public class Floor implements Comparable {
      * @return # of AbstractMachine objs successfully added
      */
     public int addMachines(ArrayList<AbstractMachine> machineArrayList) {
-        return (int) machineArrayList.stream().sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
-                .map(machine ->
-                        place(machine.getShape(),
-                                machine.getLeadTile().getX(), machine.getLeadTile().getY(),
-                                machine.getOrientation())
-                ).filter(x -> x).count();
+            return (int) machineArrayList.stream().sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
+                    .map(machine ->
+                            place(machine.getShape(),
+                                    machine.getLeadTile().getX(), machine.getLeadTile().getY(),
+                                    machine.getOrientation())
+                    ).filter(x -> x).count();
     }
 
     public void display() {

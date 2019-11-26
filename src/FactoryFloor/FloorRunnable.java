@@ -5,6 +5,8 @@ import Machine.Transformations;
 
 import java.sql.Time;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -12,98 +14,52 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-public class FloorRunnable implements Callable {
+public class FloorRunnable implements Runnable {
 
-    private List<Floor> solutions;
+    ArrayList<Floor> floors;
     ThreadLocalRandom tlr;
     CountDownLatch latch;
     boolean debug;
 
-    public FloorRunnable (List<Floor> floors, CountDownLatch latch, boolean debug){
+    public FloorRunnable (ArrayList<Floor> floors, CountDownLatch latch, boolean debug){
         this.latch = latch;
-        solutions = floors;
+        this.floors = floors;
         tlr = ThreadLocalRandom.current();
         this.debug = debug;
     }
 
-    Floor getRandom(List<Floor> pool){
-        if (pool.size() > 1) {
-            return pool.get(tlr.nextInt(pool.size()));
-        } else {
-            return pool.get(0);
-        }
-    }
-
     @Override
-    public void run() {
-        String thread = Thread.currentThread().getId() + "";
-        List<Floor> workingSet = solutions.stream().filter(x -> !x.isSwapped())
-                .collect(Collectors.toCollection(ArrayList::new));
-        if (workingSet.size() == 0){
-            latch.countDown();
-            if (debug){
-                System.out.println("Thread [" + thread + "] nothing left to process, latch is at " + latch.getCount());
-            }
-            return ;
+    public void run(){
+        if (floors.size()<2){
+            return;
         }
-        Floor f1 = getRandom(workingSet);
-
+        Floor[] twoFloors = new Floor[]{floors.remove(tlr.nextInt(floors.size())),
+                floors.remove(tlr.nextInt(floors.size()))};
+        Arrays.sort(twoFloors, Comparator.naturalOrder());
         try {
-            if (!f1.lock.tryLock(1, TimeUnit.SECONDS) ){
-                if (debug) {
-                System.out.println("Thread [" + thread + "] awaiting f1 lock...");
-                }
-//                f1 = getRandom(workingSet);
-                return;
+            while (!twoFloors[0].lock.tryLock(tlr.nextInt(500), TimeUnit.MILLISECONDS)){
+                floors.add(twoFloors[0]);
+                twoFloors[0] = floors.remove(tlr.nextInt(floors.size()));
             }
-            workingSet.remove(f1);
-            if (workingSet.size() == 0){
-                latch.countDown();
-                if (debug){
-                    System.out.println("Thread [" + thread + "] nothing left to process, latch is at " + latch.getCount());
-                }
-                return ;
-            }
-            Floor f2 = getRandom(workingSet);
             try {
-                if ((!f2.lock.tryLock(1, TimeUnit.SECONDS))){
-                    if (debug) {
-                    System.out.println("Thread [" + thread + "] awaiting f2 lock...");
-                    }
-//                    f2 = getRandom(workingSet);
-                    return;
+                while (!twoFloors[1].lock.tryLock(tlr.nextInt(500), TimeUnit.MILLISECONDS)){
+                    floors.add(twoFloors[1]);
+                    twoFloors[1] = floors.remove(tlr.nextInt(floors.size()));
                 }
-                f1.swap(f2);
+                twoFloors[0].swap(twoFloors[1]);
                 latch.countDown();
-                if (debug) {
-                System.out.println("Thread [" + thread + "] completed, latch is at " + latch.getCount());
-                }
-            } catch (InterruptedException e){
-                System.out.println("Thread [" + thread + "] interrupted");
             }finally {
-                if (f2.lock.isHeldByCurrentThread()) {
-                    f2.lock.unlock();
+                if (twoFloors[1].lock.isHeldByCurrentThread()) {
+                    twoFloors[1].lock.unlock();
                 }
             }
-
-        } catch (InterruptedException e){
-            System.out.println("Thread [" + thread + "] interrupted");
-        }
-        finally {
-            if (f1.lock.isHeldByCurrentThread()) {
-                f1.lock.unlock();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            if (twoFloors[0].lock.isHeldByCurrentThread()) {
+                twoFloors[0].lock.unlock();
             }
         }
-//        Floor f2 = solutions.get(Transformations.r.nextInt(10));
-//        while ( || !f1.swap(f2)) {
-//            f1 = solutions.get(Transformations.r.nextInt(10));
-//            f2 = solutions.get(Transformations.r.nextInt(10));
-//        }
-//        latch.countDown();
     }
 
-    @Override
-    public Object call() throws Exception {
-        return null;
-    }
 }

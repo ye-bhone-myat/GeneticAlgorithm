@@ -10,6 +10,10 @@ public class Main {
 
     public static void main(String[] args) {
 
+        if (args.length < 3){
+            System.out.println("Please give as arguments the population size, the number of threads to use, and the maximum score");
+            System.exit(0);
+        }
 
         int roomWidth = 16;
         int roomHeight = 16;
@@ -18,6 +22,7 @@ public class Main {
         int masScore = Integer.parseInt(args[2]);
         boolean debug = (args.length > 3);
         long startTime = System.currentTimeMillis();
+
 
         System.out.println("Using " + nThreads + " threads on pool of " + NSOLUTIONS + " solutions...");
 //        Floor floor1 = new Floor(roomWidth, roomHeight);
@@ -60,8 +65,11 @@ public class Main {
         String thread = Thread.currentThread().getName();
         while(floors.get(0).getScore() < masScore) {
             lastMax = floors.get(0).getScore();
-            latch = new CountDownLatch(NSOLUTIONS);
-//            System.out.println("Submitting tasks");
+            latch = new CountDownLatch(NSOLUTIONS/2);
+////            System.out.println("Submitting tasks");
+//            floors.forEach((x, y) -> {
+//                executor.execute(new FloorRunnable(x, y, latch, debug));
+//            });
             for (int i = 0; i < NSOLUTIONS; ++i) {
                 executor.execute(new FloorRunnable(floors, latch, debug));
             }
@@ -72,7 +80,10 @@ public class Main {
                 e.printStackTrace();
             }
             floors.sort(Comparator.naturalOrder());
-            floors.removeIf(x -> x.getScore() < floors.get(0).getScore()/2);
+            floors.removeIf(x -> {
+                double score = 1/x.getScore();
+                return r.nextDouble() > score;
+            });
             while (floors.size() < NSOLUTIONS) {
                 Floor f = new Floor(roomWidth, roomHeight);
                 for (int i = 0; i < max; ++i) {
@@ -89,8 +100,11 @@ public class Main {
                 }
                 floors.add(f);
             }
+            floors.forEach(x ->{
+                x.calculateScore();
+                x.resetSwapped();
+            });
             floors.sort(Comparator.naturalOrder());
-            floors.forEach(Floor::resetSwapped);
             generation++;
             if (debug) {
                 System.out.print("===== Generation [" + generation + "] ===== ");
