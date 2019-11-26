@@ -30,11 +30,14 @@ public class FloorRunnable implements Runnable {
 
     @Override
     public void run(){
-        if (floors.size()<2){
+        List<Floor> workingSet = floors.stream().filter(x -> !x.isSwapped())
+                .collect(Collectors.toList());
+        if (workingSet.size()<2){
+//            latch.countDown();
             return;
         }
-        Floor[] twoFloors = new Floor[]{floors.remove(tlr.nextInt(floors.size())),
-                floors.remove(tlr.nextInt(floors.size()))};
+        Floor[] twoFloors = new Floor[]{workingSet.remove(tlr.nextInt(workingSet.size())),
+                workingSet.remove(tlr.nextInt(workingSet.size()))};
         Arrays.sort(twoFloors, Comparator.naturalOrder());
         try {
             while (!twoFloors[0].lock.tryLock(tlr.nextInt(500), TimeUnit.MILLISECONDS)){

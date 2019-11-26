@@ -70,7 +70,7 @@ public class Main {
 //            floors.forEach((x, y) -> {
 //                executor.execute(new FloorRunnable(x, y, latch, debug));
 //            });
-            for (int i = 0; i < NSOLUTIONS; ++i) {
+            for (int i = 0; i < NSOLUTIONS/2; ++i) {
                 executor.execute(new FloorRunnable(floors, latch, debug));
             }
 //            System.out.println("Thread [" + thread + "] awaiting latch...");
@@ -79,9 +79,11 @@ public class Main {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+            floors.forEach(Floor::calculateScore);
             floors.sort(Comparator.naturalOrder());
             floors.removeIf(x -> {
-                double score = 1/x.getScore();
+                int scoreRaw = x.getScore();
+                double score = (scoreRaw == 0) ? 0 : (double) 1/scoreRaw;
                 return r.nextDouble() > score;
             });
             while (floors.size() < NSOLUTIONS) {
@@ -109,12 +111,12 @@ public class Main {
             if (debug) {
                 System.out.print("===== Generation [" + generation + "] ===== ");
 //            floors.get(0).display();
-                System.out.println("Score: " + floors.get(0).getScore());
+                System.out.print("Score: " + floors.get(0).getScore() + "\r");
             } else {
                 if (generation % 20 == 0){
                     System.out.print("===== Generation [" + generation + "] ===== ");
 //            floors.get(0).display();
-                    System.out.println("Score: " + floors.get(0).getScore());
+                    System.out.println("Score: " + floors.get(0).getScore() + "\r");
                 }
             }
         }
@@ -128,7 +130,9 @@ public class Main {
         floors.get(0).display();
         System.out.println("Score: " + floors.get(0).getScore());
         System.out.println("Scores: ");
-        floors.forEach(f -> System.out.println(f.getScore()));
+        System.out.print("[");
+        floors.forEach(f -> System.out.print(f.getScore() + ", "));
+        System.out.println("]");
         long endTime = System.currentTimeMillis() - startTime;
         double durationSeconds = ((double) endTime) / 1000;
         System.out.println("Time elapsed: " + durationSeconds + " seconds");

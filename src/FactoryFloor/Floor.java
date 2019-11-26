@@ -167,15 +167,13 @@ public class Floor implements Comparable {
 
     public ArrayList<AbstractMachine> removeMachines(int start, int end) {
         ArrayList<Tile> tilesArrayList = getTilesList(start, end);
-        ArrayList<AbstractMachine> abstractMachines = tilesArrayList.stream().filter(Tile::isOccupied).map(tile -> {
+        return tilesArrayList.stream().filter(Tile::isOccupied).map(tile -> {
             AbstractMachine tm = tile.getMachine();
             tm.getGrids().forEach(Tile::clear);
             machines.remove(tm);
             return tm;
         }).sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
                 .collect(Collectors.toCollection(ArrayList::new));
-        lock.unlock();
-        return abstractMachines;
     }
 
     public void swap(Floor f2) {
@@ -189,8 +187,6 @@ public class Floor implements Comparable {
         f2.clearMachines(start, end);
         this.addMachines(machines2);
         f2.addMachines(machines1);
-//            this.calculateScore();
-//            f2.calculateScore();
         this.isSwapped = true;
         f2.isSwapped = true;
     }
@@ -207,12 +203,12 @@ public class Floor implements Comparable {
      * @return # of AbstractMachine objs successfully added
      */
     public int addMachines(ArrayList<AbstractMachine> machineArrayList) {
-            return (int) machineArrayList.stream().sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
-                    .map(machine ->
-                            place(machine.getShape(),
-                                    machine.getLeadTile().getX(), machine.getLeadTile().getY(),
-                                    machine.getOrientation())
-                    ).filter(x -> x).count();
+        return (int) machineArrayList.stream().sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
+                .map(machine ->
+                        place(machine.getShape(),
+                                machine.getLeadTile().getX(), machine.getLeadTile().getY(),
+                                machine.getOrientation())
+                ).filter(x -> x).count();
     }
 
     public void display() {
@@ -233,10 +229,9 @@ public class Floor implements Comparable {
 
     public int calculateScore() {
         int score = 0;
-        ArrayDeque<AbstractMachine> mDeque = new ArrayDeque<>(machines);
-        while (!mDeque.isEmpty()) {
-            AbstractMachine machine = mDeque.pop();
-            score += machine.evaluate();
+        for (AbstractMachine machine : machines) {
+            if (machine != null)
+                score += machine.evaluate();
         }
         score += machines.size();
         this.score = score;
