@@ -14,7 +14,7 @@ public class Tile implements Comparable{
     private AbstractMachine machine;
     private int x, y;
 
-    public Tile(int x, int y) {
+    Tile(int x, int y) {
         this.x = x;
         this.y = y;
         machine = null;
@@ -25,11 +25,11 @@ public class Tile implements Comparable{
         occupied = false;
     }
 
-    public int getX(){
+    int getX(){
         return x;
     }
 
-    public int getY(){
+    int getY(){
         return y;
     }
 
@@ -59,7 +59,7 @@ public class Tile implements Comparable{
     }
 
 
-    Tile getNeighbor(Orientation direction, int distance){
+    private Tile getNeighbor(Orientation direction, int distance){
         if (distance > 0) {
             if (direction == Orientation.N) {
                 distance --;
@@ -81,7 +81,7 @@ public class Tile implements Comparable{
         }
     }
 
-    Tile getNeighbor (ArrayDeque<Orientation> directions){
+    private Tile getNeighbor(ArrayDeque<Orientation> directions){
         if (!directions.isEmpty()) {
             Orientation direction = directions.pop();
             if (direction == Orientation.N) {
@@ -108,7 +108,7 @@ public class Tile implements Comparable{
         return machine;
     }
 
-    public void clear(){
+    void clear(){
         this.occupied = false;
         this.machine = null;
     }
@@ -176,7 +176,7 @@ public class Tile implements Comparable{
         }
     }
 
-    public boolean isOccupied(){
+    boolean isOccupied(){
         return occupied;
     }
 
@@ -192,7 +192,7 @@ public class Tile implements Comparable{
         return distances.get(keys.get(0));
     }
 
-    public double getEuclideanDistance(Tile t){
+    private double getEuclideanDistance(Tile t){
         return Math.sqrt(Math.pow(t.x - x, 2) + Math.pow(t.y - y, 2));
     }
 

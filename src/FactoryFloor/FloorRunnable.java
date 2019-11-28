@@ -1,67 +1,60 @@
 package FactoryFloor;
 
-import FactoryFloor.Floor;
-import Machine.Transformations;
-
-import java.sql.Time;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+
 public class FloorRunnable implements Runnable {
 
-    ArrayList<Floor> floors;
-    ThreadLocalRandom tlr;
-    CountDownLatch latch;
+    Floor floor1, floor2;
+//    ThreadLocalRandom tlr;
+    private CountDownLatch latch;
     boolean debug;
 
-    public FloorRunnable (ArrayList<Floor> floors, CountDownLatch latch, boolean debug){
+    public FloorRunnable(Floor f1, Floor f2, CountDownLatch latch, boolean debug){
         this.latch = latch;
-        this.floors = floors;
-        tlr = ThreadLocalRandom.current();
+        floor1 = f1;
+        floor2 = f2;
+//        tlr = ThreadLocalRandom.current();
         this.debug = debug;
     }
 
     @Override
     public void run(){
-        List<Floor> workingSet = floors.stream().filter(x -> !x.isSwapped())
-                .collect(Collectors.toList());
-        if (workingSet.size()<2){
-//            latch.countDown();
-            return;
+        ThreadLocalRandom tlr = ThreadLocalRandom.current();
+        int mutateTimes = tlr.nextInt(10);
+        String threadName = "[" + Thread.currentThread().getId() + "]";
+        if (debug){
+            System.out.println("Thread " + threadName + " mutating " + mutateTimes + " times...");
         }
-        Floor[] twoFloors = new Floor[]{workingSet.remove(tlr.nextInt(workingSet.size())),
-                workingSet.remove(tlr.nextInt(workingSet.size()))};
-        Arrays.sort(twoFloors, Comparator.naturalOrder());
-        try {
-            while (!twoFloors[0].lock.tryLock(tlr.nextInt(500), TimeUnit.MILLISECONDS)){
-                floors.add(twoFloors[0]);
-                twoFloors[0] = floors.remove(tlr.nextInt(floors.size()));
-            }
-            try {
-                while (!twoFloors[1].lock.tryLock(tlr.nextInt(500), TimeUnit.MILLISECONDS)){
-                    floors.add(twoFloors[1]);
-                    twoFloors[1] = floors.remove(tlr.nextInt(floors.size()));
+        for (int i = 0; i < mutateTimes; ++i){
+            floor1.mutate();
+        }
+        int id1 = floor1.getID();
+        int id2 = floor2.getID();
+        if (!floor1.equals(floor2) && tlr.nextInt(5) < 1){
+            if (floor1.getID() < floor2.getID()){
+                if (debug){
+                    System.out.println("Thread " + threadName + " swapping f" + id1 + " and f" + id2 + "...");
                 }
-                twoFloors[0].swap(twoFloors[1]);
-                latch.countDown();
-            }finally {
-                if (twoFloors[1].lock.isHeldByCurrentThread()) {
-                    twoFloors[1].lock.unlock();
+                floor1.swap(floor2);
+            } else {
+                if (debug){
+                    System.out.println("Thread " + threadName + " f" + id2 + " precedes f" + id1 + "...");
+                    System.out.println("Thread " + threadName + " swapping f" + id2 + " and f" + id1 + "...");
                 }
+                floor2.swap(floor1);
             }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } finally {
-            if (twoFloors[0].lock.isHeldByCurrentThread()) {
-                twoFloors[0].lock.unlock();
-            }
+        }
+        latch.countDown();
+        if (debug){
+            System.out.println("Thread " + threadName + " latch down at " + latch.getCount());
         }
     }
 

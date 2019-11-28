@@ -1,6 +1,4 @@
 package Machine;
-
-import FactoryFloor.Tile;
 import Utils.Orientation;
 
 import java.util.*;
@@ -46,7 +44,7 @@ public interface Transformations {
      *    [X]
      */
 
-    Orientation[] DIRECTIONS = {N, E, S, W};
+    Orientation[] DIRECTIONS = Orientation.values();
     ThreadLocalRandom r = ThreadLocalRandom.current();
 
     ArrayDeque<Orientation> SQUARE = new ArrayDeque<>(
@@ -68,13 +66,17 @@ public interface Transformations {
             Arrays.asList(N, W, N));
 
     static Orientation randomOrientation() {
-        return DIRECTIONS[r.nextInt(DIRECTIONS.length)];
+        return DIRECTIONS[r.nextInt(4)];
     }
 
     static Orientation rotate(Orientation orientation, int rotation) {
         int index = Arrays.asList(DIRECTIONS).indexOf(orientation);
         index = (index + rotation) % DIRECTIONS.length;
         return DIRECTIONS[Math.abs(index)];
+    }
+
+    static Shapes getRandomShape(){
+        return Shapes.values()[r.nextInt(6)];
     }
 
     static ArrayDeque<Orientation> getOrientationArrayDeque(Shapes s) {
@@ -101,10 +103,18 @@ public interface Transformations {
         return index2 - index1;
     }
 
-    static ArrayDeque<Orientation> rotateOrientations(ArrayDeque<Orientation> orientations, Orientation direction) {
+    static ArrayDeque<Orientation> rotateToOrientations(ArrayDeque<Orientation> orientations, Orientation direction) {
         Orientation leadOrientation = orientations.getFirst();
         int difference = getOrientationDifference(leadOrientation, direction);
         return orientations.stream().map(x -> rotate(x, difference))
+                .collect(Collectors.toCollection(ArrayDeque::new));
+
+    }
+
+    static ArrayDeque<Orientation> rotateOrientations(ArrayDeque<Orientation> orientations, int direction) {
+        Orientation leadOrientation = orientations.getFirst();
+//        int difference = getOrientationDifference(leadOrientation, direction);
+        return orientations.stream().map(x -> rotate(x, direction))
                 .collect(Collectors.toCollection(ArrayDeque::new));
 
     }
@@ -248,7 +258,7 @@ public interface Transformations {
                 }
                 break;
         }
-        return rotateOrientations(orientations, orientation);
+        return rotateToOrientations(orientations, orientation);
     }
 
 

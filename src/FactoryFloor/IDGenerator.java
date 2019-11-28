@@ -2,7 +2,7 @@ package FactoryFloor;
 
 import java.util.ArrayDeque;
 
-public class IDGenerator {
+public final class IDGenerator {
     private static int count = 0;
     private static ArrayDeque<Integer> killedIDs = new ArrayDeque<>();
 

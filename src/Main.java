@@ -1,5 +1,6 @@
 import FactoryFloor.Floor;
 import FactoryFloor.FloorRunnable;
+import FactoryFloor.IDGenerator;
 import Machine.Shapes;
 
 import java.util.*;
@@ -10,48 +11,40 @@ public class Main {
 
     public static void main(String[] args) {
 
-        if (args.length < 3){
-            System.out.println("Please give as arguments the population size, the number of threads to use, and the maximum score");
+        if (args.length < 3) {
+            System.out.println("Please give as arguments the number of threads to use, the minimum score" +
+                    ", and score threshold");
             System.exit(0);
         }
 
         int roomWidth = 16;
         int roomHeight = 16;
-        int NSOLUTIONS = Integer.parseInt(args[0]);
-        int nThreads = Integer.parseInt(args[1]);
-        int masScore = Integer.parseInt(args[2]);
-        boolean debug = (args.length > 3);
-        long startTime = System.currentTimeMillis();
+        final int NSOLUTIONS;
+        int nThreads = Integer.parseInt(args[0]);
+        int minScore = Integer.parseInt(args[1]);
+        int threshold = Integer.parseInt(args[2]);
+        boolean verbose = args.length > 3;
+        int processorCount = Runtime.getRuntime().availableProcessors();
+        Scanner sc = null;
+        boolean cont = false;
+        if (verbose) {
+            System.out.println("RUNNING IN VERBOSE MODE");
+            NSOLUTIONS = nThreads;
+            sc = new Scanner(System.in);
+        } else {
+            nThreads = processorCount;
+            NSOLUTIONS = nThreads;
+        }
+        if (processorCount < 32) {
+            System.out.println("System has less than 32 cores...");
+        }
+
+        System.out.println("Using " + nThreads + " threads and " + NSOLUTIONS + " solutions");
 
 
-        System.out.println("Using " + nThreads + " threads on pool of " + NSOLUTIONS + " solutions...");
-//        Floor floor1 = new Floor(roomWidth, roomHeight);
-//        Floor floor2 = new Floor(roomWidth, roomHeight);
-        ArrayList<Shapes> shapes = new ArrayList<>(Arrays.asList(
-                Shapes.Square
-                , Shapes.ElbowL
-                , Shapes.KinkL
-                , Shapes.ElbowR
-                , Shapes.KinkR
-                , Shapes.Rod
-        ));
-        ThreadLocalRandom r = ThreadLocalRandom.current();
-        int max = 32 + r.nextInt(7);
         ArrayList<Floor> floors = new ArrayList<>();
         for (int j = 0; j < NSOLUTIONS; ++j) {
             floors.add(new Floor(roomWidth, roomHeight));
-            for (int i = 0; i < max; ++i) {
-                int tries = 0;
-                Shapes shape = shapes.get(r.nextInt(shapes.size()));
-                boolean placed = floors.get(j).place(shape, r.nextInt(roomHeight), r.nextInt(roomWidth));
-                while (!placed && tries < 10) {
-                    placed = floors.get(j).place(shape, r.nextInt(roomHeight), r.nextInt(roomWidth));
-                    ++tries;
-                }
-                if (!placed) {
-                    --i;
-                }
-            }
         }
         int generation = 0;
         floors.sort(Comparator.naturalOrder());
@@ -60,65 +53,68 @@ public class Main {
         System.out.println("Score: " + floors.get(0).getScore());
 
         ExecutorService executor = Executors.newFixedThreadPool(nThreads);
-        CountDownLatch latch;
-        int lastMax = 0;
-        String thread = Thread.currentThread().getName();
-        while(floors.get(0).getScore() < masScore) {
-            lastMax = floors.get(0).getScore();
-            latch = new CountDownLatch(NSOLUTIONS/2);
-////            System.out.println("Submitting tasks");
-//            floors.forEach((x, y) -> {
-//                executor.execute(new FloorRunnable(x, y, latch, debug));
-//            });
-            for (int i = 0; i < NSOLUTIONS/2; ++i) {
-                executor.execute(new FloorRunnable(floors, latch, debug));
+        String threadString = "[" + Thread.currentThread().getId() + "]";
+        int last = 0;
+        long startTime = System.currentTimeMillis();
+        while (true) {
+            if (verbose) {
+                System.out.println("===== Generation [" + generation + "] =====");
+                floors.get(0).display();
+                System.out.println("Score: " + floors.get(0).getScore());
+                System.out.println("Scores: ");
+                System.out.print("[");
+                floors.forEach(f -> System.out.print(f.getScore() + ", "));
+                System.out.println("]");
+            } else {
+                if (generation % 50 == 0) {
+                    System.out.print("===== Generation [" + generation + "] =====  ");
+//                    floors.get(0).display();
+                    System.out.println("Score: " + floors.get(0).getScore());
+                    System.out.print("Scores: ");
+                    System.out.print("[");
+                    floors.forEach(f -> System.out.print(f.getScore() + ", "));
+                    System.out.println("]");
+                }
             }
-//            System.out.println("Thread [" + thread + "] awaiting latch...");
+            CountDownLatch latch = new CountDownLatch(NSOLUTIONS);
+            ArrayList<Floor> workingList = new ArrayList<>(floors);
+            floors.forEach(x -> {
+//                workingList.remove(x);
+                Floor f = floors.get(ThreadLocalRandom.current().nextInt(workingList.size()));
+                executor.execute(new FloorRunnable(x, f, latch, verbose));
+            });
+            if (verbose) System.out.println("Thread " + threadString + " awaiting latch...");
             try {
                 latch.await();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            floors.forEach(Floor::calculateScore);
-            floors.sort(Comparator.naturalOrder());
+            // kill the weak
             floors.removeIf(x -> {
                 int scoreRaw = x.getScore();
-                double score = (scoreRaw == 0) ? 0 : (double) 1/scoreRaw;
-                return r.nextDouble() > score;
+                double score = (scoreRaw == 0) ? 0 : (double) 1 / scoreRaw;
+                boolean isKilled = ThreadLocalRandom.current().nextDouble() < score || scoreRaw < 0;
+                if (isKilled) {
+                    IDGenerator.addKilled(x.getID());
+                }
+                return isKilled;
             });
             while (floors.size() < NSOLUTIONS) {
-                Floor f = new Floor(roomWidth, roomHeight);
-                for (int i = 0; i < max; ++i) {
-                    int tries = 0;
-                    Shapes shape = shapes.get(r.nextInt(shapes.size()));
-                    boolean placed = f.place(shape, r.nextInt(roomHeight), r.nextInt(roomWidth));
-                    while (!placed && tries < 10) {
-                        placed = f.place(shape, r.nextInt(roomHeight), r.nextInt(roomWidth));
-                        ++tries;
-                    }
-                    if (!placed) {
-                        --i;
-                    }
-                }
-                floors.add(f);
+                floors.add(new Floor(roomWidth, roomHeight));
             }
-            floors.forEach(x ->{
-                x.calculateScore();
-                x.resetSwapped();
-            });
             floors.sort(Comparator.naturalOrder());
-            generation++;
-            if (debug) {
-                System.out.print("===== Generation [" + generation + "] ===== ");
-//            floors.get(0).display();
-                System.out.print("Score: " + floors.get(0).getScore() + "\r");
-            } else {
-                if (generation % 20 == 0){
-                    System.out.print("===== Generation [" + generation + "] ===== ");
-//            floors.get(0).display();
-                    System.out.println("Score: " + floors.get(0).getScore() + "\r");
-                }
+            ++generation;
+            if (verbose && !cont) {
+                System.out.println(">>> Press Enter to advance, enter \"continue\" to continue without pause...");
+                String c = sc.nextLine();
+                System.out.println(c);
+                cont = "continue".equalsIgnoreCase(c);
+
             }
+            if (floors.get(0).getScore() > minScore && Math.abs(floors.get(0).getScore() - last) < threshold){
+                break;
+            }
+            last = floors.get(0).getScore();
         }
 
         executor.shutdown();
@@ -126,6 +122,8 @@ public class Main {
 
         }
 
+        long endTime = System.currentTimeMillis() - startTime;
+        double durationSeconds = ((double) endTime) / 1000;
         System.out.println("===== Generation [" + generation + "] =====");
         floors.get(0).display();
         System.out.println("Score: " + floors.get(0).getScore());
@@ -133,11 +131,121 @@ public class Main {
         System.out.print("[");
         floors.forEach(f -> System.out.print(f.getScore() + ", "));
         System.out.println("]");
-        long endTime = System.currentTimeMillis() - startTime;
-        double durationSeconds = ((double) endTime) / 1000;
         System.out.println("Time elapsed: " + durationSeconds + " seconds");
-        System.out.println(NSOLUTIONS/nThreads + " Solutions per thread");
-        System.out.println("Average " + endTime/NSOLUTIONS + " milliseconds per solution");
+
+
+//        Floor floor1 = new Floor(16, 16);
+//        Floor floor2 = new Floor(16, 16);
+//        floor1.display();
+//        System.out.println("\n================\n");
+//        floor2.display();
+//        System.out.println("\n================\n");
+//        Thread t = new Thread(new FloorRunnable(floor1, floor2, false));
+//        t.start();
+//        try {
+//            Thread.sleep(1000);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+//        floor1.display();
+//        System.out.println("\n================\n");
+//        floor2.display();
+//        System.out.println("\n================\n");
+
+
+//        ArrayList<Floor> floors = new ArrayList<>();
+//        for (int j = 0; j < NSOLUTIONS; ++j) {
+//            floors.add(new Floor(roomWidth, roomHeight));
+//        }
+
+
+//        int generation = 0;
+//        floors.sort(Comparator.naturalOrder());
+//        System.out.println("===== Generation [" + generation + "] =====");
+//        floors.get(0).display();
+//        System.out.println("Score: " + floors.get(0).getScore());
+//
+//        ExecutorService executor = Executors.newFixedThreadPool(nThreads);
+//        CountDownLatch latch;
+//        int lastMax = 0;
+//        String thread = Thread.currentThread().getName();
+//        while(floors.get(0).getScore() < masScore) {
+//            lastMax = floors.get(0).getScore();
+//            latch = new CountDownLatch(NSOLUTIONS/2);
+//            ArrayList<Floor> workingList = new ArrayList<>(floors);
+//////            System.out.println("Submitting tasks");
+////            floors.forEach((x, y) -> {
+////                executor.execute(new FloorRunnableA(x, y, latch, debug));
+////            });
+//            for (int i = 0; i < NSOLUTIONS/2; ++i) {
+//
+//                executor.execute(new FloorRunnableA(floors, latch, debug));
+//            }
+////            System.out.println("Thread [" + thread + "] awaiting latch...");
+//            try {
+//                latch.await();
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//            floors.forEach(Floor::calculateScore);
+//            floors.sort(Comparator.naturalOrder());
+//            floors.removeIf(x -> {
+//                int scoreRaw = x.getScore();
+//                double score = (scoreRaw == 0) ? 0 : (double) 1/scoreRaw;
+//                return r.nextDouble() > score;
+//            });
+//            while (floors.size() < NSOLUTIONS) {
+//                Floor f = new Floor(roomWidth, roomHeight);
+//                for (int i = 0; i < max; ++i) {
+//                    int tries = 0;
+//                    Shapes shape = shapes.get(r.nextInt(shapes.size()));
+//                    boolean placed = f.place(shape, r.nextInt(roomHeight), r.nextInt(roomWidth));
+//                    while (!placed && tries < 10) {
+//                        placed = f.place(shape, r.nextInt(roomHeight), r.nextInt(roomWidth));
+//                        ++tries;
+//                    }
+//                    if (!placed) {
+//                        --i;
+//                    }
+//                }
+//                floors.add(f);
+//            }
+//            floors.forEach(x ->{
+//                x.calculateScore();
+//                x.resetSwapped();
+//            });
+//            floors.sort(Comparator.naturalOrder());
+//            generation++;
+//            if (debug) {
+//                System.out.print("===== Generation [" + generation + "] ===== ");
+////            floors.get(0).display();
+//                System.out.print("Score: " + floors.get(0).getScore() + "\r");
+//            } else {
+//                if (generation % 20 == 0){
+//                    System.out.print("===== Generation [" + generation + "] ===== ");
+////            floors.get(0).display();
+//                    System.out.println("Score: " + floors.get(0).getScore() + "\r");
+//                }
+//            }
+//        }
+//
+//        executor.shutdown();
+//        while (!executor.isTerminated()) {
+//
+//        }
+//
+//        System.out.println("===== Generation [" + generation + "] =====");
+//        floors.get(0).display();
+//        System.out.println("Score: " + floors.get(0).getScore());
+//        System.out.println("Scores: ");
+//        System.out.print("[");
+//        floors.forEach(f -> System.out.print(f.getScore() + ", "));
+//        System.out.println("]");
+//        long endTime = System.currentTimeMillis() - startTime;
+//        double durationSeconds = ((double) endTime) / 1000;
+//        System.out.println("Time elapsed: " + durationSeconds + " seconds");
+//        System.out.println(NSOLUTIONS/nThreads + " Solutions per thread");
+//        System.out.println("Average " + endTime/NSOLUTIONS + " milliseconds per solution");
 
 //        int max = 4;
 

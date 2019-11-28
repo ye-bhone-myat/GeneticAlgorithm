@@ -5,7 +5,6 @@ import Utils.Orientation;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -19,24 +18,26 @@ public class Floor implements Comparable {
     private ArrayList<AbstractMachine> machines;
     private final int ID;
     private int score;
-    ReentrantLock lock;
+    private final ReentrantLock lock;
     private boolean isSwapped;
-    private ThreadLocalRandom r;
 
-    public Floor(int floorwidth, int floorlength) {
-        this.height = floorlength;
+    public Floor(int floorwidth, int floorheight) {
+        this.height = floorheight;
         this.width = floorwidth;
-        tiles = new Tile[floorlength][floorwidth];
+        tiles = new Tile[floorheight][floorwidth];
         machines = new ArrayList<>();
         generateTiles();
         this.ID = IDGenerator.nextID();
-        this.score = 0;
         lock = new ReentrantLock();
         isSwapped = false;
     }
 
     public int getScore() {
         return score;
+    }
+
+    public int getMachineCount() {
+        return machines.size();
     }
 
     public void resetSwapped() {
@@ -54,6 +55,7 @@ public class Floor implements Comparable {
             }
         }
         assignNeighbors();
+        populate(32, 8);
     }
 
     private void assignNeighbors() {
@@ -103,16 +105,31 @@ public class Floor implements Comparable {
         }
     }
 
+    private void populate(int min, int max) {
+        ThreadLocalRandom r = ThreadLocalRandom.current();
+        int count = min + r.nextInt(max);
+        for (int i = 0; i < count; ++i) {
+            Shapes shape = Transformations.getRandomShape();
+            boolean placed = place(shape, r.nextInt(height), r.nextInt(width));
+            if (!placed) {
+                if (count < min) {
+                    --i;
+                }
+            }
+        }
+        calculateScore();
+    }
+
     public boolean place(Shapes shape, int x, int y) {
         ArrayDeque<Orientation> orientationArrayDeque = Transformations.getOrientationArrayDeque(shape);
         Orientation o = Transformations.randomOrientation();
-        orientationArrayDeque = Transformations.rotateOrientations(orientationArrayDeque, o);
+        orientationArrayDeque = Transformations.rotateToOrientations(orientationArrayDeque, o);
         int i = 0;
         boolean placeable = false;
         while (i < 4 && !(placeable = tiles[y][x].placeable(orientationArrayDeque.clone()))) {
             ++i;
-            o = Transformations.randomOrientation();
-            orientationArrayDeque = Transformations.rotateOrientations(orientationArrayDeque, o);
+            o = Transformations.rotate(o, 1);
+            orientationArrayDeque = Transformations.rotateToOrientations(orientationArrayDeque, o);
         }
 //        ArrayList<Tile> addedShape;
         if (placeable) {
@@ -120,20 +137,18 @@ public class Floor implements Comparable {
 //            AbstractMachine machine = new AbstractMachine(addedShape, shape);
             machines.add(tiles[y][x].getMachine());
         }
-        calculateScore();
         return placeable;
     }
 
     public boolean place(Shapes shape, int x, int y, Orientation orientation) {
         ArrayDeque<Orientation> orientationArrayDeque = Transformations.getOrientationArrayDeque(shape);
-        orientationArrayDeque = Transformations.rotateOrientations(orientationArrayDeque, orientation);
+        orientationArrayDeque = Transformations.rotateToOrientations(orientationArrayDeque, orientation);
         boolean placeable = tiles[y][x].placeable(orientationArrayDeque.clone());
         if (placeable) {
             tiles[y][x].place(orientationArrayDeque.clone(), shape, orientation);
 //            AbstractMachine machine = new AbstractMachine(addedShape, shape);
             machines.add(tiles[y][x].getMachine());
         }
-        calculateScore();
         return placeable;
     }
 
@@ -176,19 +191,106 @@ public class Floor implements Comparable {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
-    public void swap(Floor f2) {
-        r = ThreadLocalRandom.current();
+    public AbstractMachine removeMachine(int x, int y) {
+        AbstractMachine tm = tiles[y][x].getMachine();
+        tm.getGrids().forEach(Tile::clear);
+        machines.remove(tm);
+        return tm;
+    }
+
+    void swap(Floor f2) {
+
+        /*
+        if this ID > f2.getID,
+            release this lock, call swap on f2
+            if lock is held, unlock
+
+        if this ID < f2.getID
+            lock this, removeMachines()
+            f2.replace()
+            release this lock
+         */
+
+        ThreadLocalRandom r = ThreadLocalRandom.current();
         int bound = (height * width) / 2;
         int start = r.nextInt(bound);
         int end = r.nextInt(bound) + start + 1;
-        ArrayList<AbstractMachine> machines1 = this.removeMachines(start, end);
-        ArrayList<AbstractMachine> machines2 = f2.removeMachines(start, end);
-        this.clearMachines(start, end);
-        f2.clearMachines(start, end);
-        this.addMachines(machines2);
-        f2.addMachines(machines1);
-        this.isSwapped = true;
-        f2.isSwapped = true;
+
+        try {
+            lock.lock();
+            ArrayList<AbstractMachine> machines1 = this.removeMachines(start, end);
+            ArrayList<AbstractMachine> machines2 = f2.replace(machines1, start, end);
+            if (!machines2.isEmpty()) {
+                addMachines(machines2, start, end);
+            }
+            this.isSwapped = true;
+            int size = machines.size();
+            if (size < 32) {
+                populate(32 - size, 8);
+            }
+        } finally {
+            lock.unlock();
+        }
+
+    }
+
+    ArrayList<AbstractMachine> replace(ArrayList<AbstractMachine> incoming, int start, int end) {
+        ArrayList<AbstractMachine> outgoing = new ArrayList<>();
+        if (!incoming.isEmpty()) {
+            try {
+                lock.lock();
+                outgoing = removeMachines(start, end);
+
+                addMachines(incoming, start, end);
+                this.isSwapped = true;
+                int size = machines.size();
+                if (size < 32) {
+                    populate(32 - size, 8);
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+        return outgoing;
+    }
+
+
+    public void mutate() {
+        ThreadLocalRandom r = ThreadLocalRandom.current();
+        int geneLength = r.nextInt((width * height) / 10) + 1;
+        int start = r.nextInt((width * height) - geneLength);
+        int end = start + geneLength;
+
+        try {
+            lock.lock();
+            ArrayList<AbstractMachine> machines1 = this.removeMachines(start, end);
+
+            int start2 = r.nextInt((width * height) - geneLength);
+            int end2 = start2 + geneLength;
+            while (start2 < end
+                    && end2 > start) {
+                // generate new values
+                start2 = r.nextInt((width * height) - geneLength);
+                end2 = start2 + geneLength;
+            }
+            ArrayList<AbstractMachine> machines2 = this.removeMachines(start2, end2);
+            if (!machines1.isEmpty()) addMachines(machines1, start2, end2);
+            if (!machines2.isEmpty()) addMachines(machines2, start, end);
+            int size = machines.size();
+            if (size < 32) {
+                populate(32 - size, 8);
+            }
+        } finally {
+            lock.unlock();
+        }
+
+    }
+
+    private int[] convertToGridPoint(int index) {
+        int[] grid = new int[2];
+        grid[0] = Math.floorDiv(index, height);
+        grid[1] = index - (height * grid[0]);
+        return grid;
     }
 
     public boolean isSwapped() {
@@ -202,13 +304,46 @@ public class Floor implements Comparable {
      * @param machineArrayList list of AbstractMachine objs to be added
      * @return # of AbstractMachine objs successfully added
      */
-    public int addMachines(ArrayList<AbstractMachine> machineArrayList) {
+    private int addMachines(ArrayList<AbstractMachine> machineArrayList) {
         return (int) machineArrayList.stream().sorted((Comparator<AbstractMachine>) (m1, m2) -> m1.compareTo(m2))
                 .map(machine ->
                         place(machine.getShape(),
-                                machine.getLeadTile().getX(), machine.getLeadTile().getY(),
+                                machine.getLeadTile().getY(), machine.getLeadTile().getX(),
                                 machine.getOrientation())
                 ).filter(x -> x).count();
+    }
+
+    private int addMachines(ArrayList<AbstractMachine> machinesList, int start, int end) {
+        ArrayList<Tile> subTiles = getTilesList(start, end);
+        // calculate difference between the distance from head tile to tail tile in machineList,
+        // and the start and end points
+        int wiggleRoom = start + getFlatLength(machinesList.get(0).getLeadTile(),
+                machinesList.get(machinesList.size() - 1).getLeadTile());
+        int placementStart = start;
+        int added = 0;
+        for (AbstractMachine s : machinesList) {
+            for (int i = placementStart; i < end; ++i) {
+                Tile currentTile = subTiles.get(i - start);
+                if (place(s.getShape(), currentTile.getY(), currentTile.getX(), s.getOrientation())) {
+                    placementStart = i;
+                    ++added;
+                    break;
+                } else {
+                    if (placementStart == wiggleRoom) {
+                        placementStart = i;
+                        break;
+                    }
+                }
+
+            }
+        }
+        return added;
+    }
+
+    private int getFlatLength(Tile x, Tile y) {
+        int yDiff = Math.abs(y.getY() - x.getY());
+        int xDiff = Math.abs(y.getX() - x.getX());
+        return (yDiff * height) + xDiff;
     }
 
     public void display() {
