@@ -25,12 +25,9 @@ public class Main {
         int threshold = Integer.parseInt(args[2]);
         boolean verbose = args.length > 3;
         int processorCount = Runtime.getRuntime().availableProcessors();
-        Scanner sc = null;
-        boolean cont = false;
         if (verbose) {
             System.out.println("RUNNING IN VERBOSE MODE");
             NSOLUTIONS = nThreads;
-            sc = new Scanner(System.in);
         } else {
             nThreads = processorCount;
             NSOLUTIONS = nThreads;
@@ -46,91 +43,39 @@ public class Main {
         for (int j = 0; j < NSOLUTIONS; ++j) {
             floors.add(new Floor(roomWidth, roomHeight));
         }
-        int generation = 0;
-        floors.sort(Comparator.naturalOrder());
-        System.out.println("===== Generation [" + generation + "] =====");
-        floors.get(0).display();
-        System.out.println("Score: " + floors.get(0).getScore());
 
-        ExecutorService executor = Executors.newFixedThreadPool(nThreads);
-        String threadString = "[" + Thread.currentThread().getId() + "]";
-        int last = 0;
-        long startTime = System.currentTimeMillis();
-        while (true) {
-            if (verbose) {
-                System.out.println("===== Generation [" + generation + "] =====");
-                floors.get(0).display();
-                System.out.println("Score: " + floors.get(0).getScore());
-                System.out.println("Scores: ");
-                System.out.print("[");
-                floors.forEach(f -> System.out.print(f.getScore() + ", "));
-                System.out.println("]");
-            } else {
-                if (generation % 50 == 0) {
-                    System.out.print("===== Generation [" + generation + "] =====  ");
-//                    floors.get(0).display();
-                    System.out.println("Score: " + floors.get(0).getScore());
-                    System.out.print("Scores: ");
-                    System.out.print("[");
-                    floors.forEach(f -> System.out.print(f.getScore() + ", "));
-                    System.out.println("]");
+        FloorsCallable c = new FloorsCallable(floors, roomHeight, roomWidth, nThreads, minScore, threshold, verbose);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<Result> result = executor.submit(c);
+        Result interimResult = c.getUpdatedResult();
+        int generation = interimResult.getGeneration();
+        int score = interimResult.getScore();
+        System.out.println("Generation " + generation + " score " + score);
+        while (!result.isDone()){
+                try {
+                    Thread.sleep(500);
+                    interimResult = c.getUpdatedResult();
+                    generation = interimResult.getGeneration();
+                    score = interimResult.getScore();
+                    System.out.println("Generation " + generation + " score " + score);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
-            }
-            CountDownLatch latch = new CountDownLatch(NSOLUTIONS);
-            ArrayList<Floor> workingList = new ArrayList<>(floors);
-            floors.forEach(x -> {
-//                workingList.remove(x);
-                Floor f = floors.get(ThreadLocalRandom.current().nextInt(workingList.size()));
-                executor.execute(new FloorRunnable(x, f, latch, verbose));
-            });
-            if (verbose) System.out.println("Thread " + threadString + " awaiting latch...");
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            // kill the weak
-            floors.removeIf(x -> {
-                int scoreRaw = x.getScore();
-                double score = (scoreRaw == 0) ? 0 : (double) 1 / scoreRaw;
-                boolean isKilled = ThreadLocalRandom.current().nextDouble() < score || scoreRaw < 0;
-                if (isKilled) {
-                    IDGenerator.addKilled(x.getID());
-                }
-                return isKilled;
-            });
-            while (floors.size() < NSOLUTIONS) {
-                floors.add(new Floor(roomWidth, roomHeight));
-            }
-            floors.sort(Comparator.naturalOrder());
-            ++generation;
-            if (verbose && !cont) {
-                System.out.println(">>> Press Enter to advance, enter \"continue\" to continue without pause...");
-                String c = sc.nextLine();
-                System.out.println(c);
-                cont = "continue".equalsIgnoreCase(c);
 
-            }
-            if (floors.get(0).getScore() > minScore && Math.abs(floors.get(0).getScore() - last) < threshold){
-                break;
-            }
-            last = floors.get(0).getScore();
         }
-
         executor.shutdown();
-        while (!executor.isTerminated()) {
+        Result r = null;
 
+        try {
+            r = result.get();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
         }
 
-        long endTime = System.currentTimeMillis() - startTime;
-        double durationSeconds = ((double) endTime) / 1000;
-        System.out.println("===== Generation [" + generation + "] =====");
+        double durationSeconds = ((double) r.getDuration()) / 1000;
+        System.out.println("===== Generation [" + r.getGeneration() + "] =====");
         floors.get(0).display();
-        System.out.println("Score: " + floors.get(0).getScore());
-        System.out.println("Scores: ");
-        System.out.print("[");
-        floors.forEach(f -> System.out.print(f.getScore() + ", "));
-        System.out.println("]");
+        System.out.println("Score: " + r.getScore());
         System.out.println("Time elapsed: " + durationSeconds + " seconds");
 
 
