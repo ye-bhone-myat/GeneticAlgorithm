@@ -215,21 +215,23 @@ public class Floor implements Comparable {
         int bound = (height * width) / 2;
         int start = r.nextInt(bound);
         int end = r.nextInt(bound) + start + 1;
-
-        try {
-            lock.lock();
-            ArrayList<AbstractMachine> machines1 = this.removeMachines(start, end);
-            ArrayList<AbstractMachine> machines2 = f2.replace(machines1, start, end);
-            if (!machines2.isEmpty()) {
-                addMachines(machines2, start, end);
+        double successChance = (this.score + f2.score)/2;
+        if (successChance > 0 && r.nextDouble() > successChance) {
+            try {
+                lock.lock();
+                ArrayList<AbstractMachine> machines1 = this.removeMachines(start, end);
+                ArrayList<AbstractMachine> machines2 = f2.replace(machines1, start, end);
+                if (!machines2.isEmpty()) {
+                    addMachines(machines2, start, end);
+                }
+                this.isSwapped = true;
+                int size = machines.size();
+                if (size < 32) {
+                    populate(32 - size, 8);
+                }
+            } finally {
+                lock.unlock();
             }
-            this.isSwapped = true;
-            int size = machines.size();
-            if (size < 32) {
-                populate(32 - size, 8);
-            }
-        } finally {
-            lock.unlock();
         }
 
     }

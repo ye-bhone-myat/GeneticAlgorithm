@@ -1,15 +1,17 @@
 import FactoryFloor.Floor;
 import FactoryFloor.FloorRunnable;
 import FactoryFloor.IDGenerator;
+import FactoryFloor.Tile;
 import Machine.Machines.AbstractMachine;
+import Machine.Shapes;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Scanner;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 public class FloorsCallable implements Callable {
 
@@ -18,11 +20,8 @@ public class FloorsCallable implements Callable {
     private int nThreads;
     private int floorLength, floorWidth, minScore, threshold;
     private final ReentrantLock lock = new ReentrantLock();
-    private final Condition accessFinished = lock.newCondition();
     private final Condition updateFinished = lock.newCondition();
-    private AtomicBoolean accessing = new AtomicBoolean(false);
-    private AtomicBoolean updating = new AtomicBoolean(false);
-    private boolean updated = false;
+    private boolean updated;
     private Result result;
 
     public FloorsCallable(ArrayList<Floor> floors, int length, int width, int nThreads,
@@ -34,7 +33,9 @@ public class FloorsCallable implements Callable {
         this.floorWidth = width;
         this.minScore = minScore;
         this.threshold = threshold;
-
+        Floor f = floors.get(0);
+        this.result = null;
+        updated = false;
     }
 
     @Override
@@ -64,14 +65,6 @@ public class FloorsCallable implements Callable {
                 }
             }
             CountDownLatch latch = new CountDownLatch(nThreads);
-//            try {
-//                lock.lock();
-//
-//                while (accessing.getAcquire()) {
-//                    accessFinished.await();
-//                }
-//                updating.set(true);
-
             floors.forEach(x -> {
                 Floor f = floors.get(ThreadLocalRandom.current().nextInt(floors.size()));
                 executor.execute(new FloorRunnable(x, f, latch, debug));
@@ -106,22 +99,15 @@ public class FloorsCallable implements Callable {
             }
             Floor f = floors.get(0);
             last = f.getScore();
-            if (!updated) {
-                result = new Result(f.getMachines(), f.getScore(), generation);
-                updated = true;
-            }
-//                updating.set(false);
-//                updated = true;
-//                updateFinished.signal();
+//            if (last == 0 && f.getScore() == 0){
+//                f.display();
+//                Thread.sleep(0);
+//            }
+
+            updateResult(f.getMachines(), last, generation);
             if (f.getScore() > minScore && Math.abs(f.getScore() - last) < threshold) {
-//                lock.unlock();
                 break;
             }
-//            } finally {
-//                if (lock.isHeldByCurrentThread()) {
-//                    lock.unlock();
-//                }
-//            }
 
         }
         long duration = System.currentTimeMillis() - startTime;
@@ -129,20 +115,45 @@ public class FloorsCallable implements Callable {
         while (!executor.isTerminated()) {
 
         }
+        Floor f = floors.get(0);
+        updateResult(f.getMachines(), f.getScore(), generation);
+        updated = true;
         result.setDuration(duration);
         return result;
     }
 
-    public Result getUpdatedResult() {
-        while (!updated) {
-            try {
-                Thread.sleep(ThreadLocalRandom.current().nextLong(200));
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+    private void updateResult(ArrayList<AbstractMachine> machines, int score, int generation) {
+        try {
+            lock.lock();
+            ArrayList<Tile> occupiedTiles = machines.stream().flatMap(machine -> machine.getGrids().stream())
+                    .collect(Collectors.toCollection(ArrayList::new));
+            int[] xVals = occupiedTiles.stream().mapToInt(Tile::getX).toArray();
+            int[] yVals = occupiedTiles.stream().mapToInt(Tile::getY).toArray();
+            Shapes[] shapes = occupiedTiles.stream().map(tile -> tile.getMachine().getShape())
+                    .toArray(Shapes[]::new);
+            result = new Result(xVals, yVals, shapes, score, generation);
+            updated = true;
+            updateFinished.signal();
+        } finally {
+            lock.unlock();
         }
-        this.updated = false;
-        return result;
+    }
+
+    Result getUpdatedResult() {
+        Result r = null;
+        try {
+            lock.lock();
+            while (!updated) {
+                updateFinished.await();
+            }
+            updated = false;
+            r = result.clone();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            lock.unlock();
+        }
+        return r;
     }
 
 }

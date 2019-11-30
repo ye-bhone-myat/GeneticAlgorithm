@@ -6,7 +6,7 @@ public final class IDGenerator {
     private static int count = 0;
     private static ArrayDeque<Integer> killedIDs = new ArrayDeque<>();
 
-    public static int nextID(){
+    public static synchronized int nextID(){
         int id;
         if (killedIDs.isEmpty()){
             id = count;
@@ -20,7 +20,7 @@ public final class IDGenerator {
         return id;
     }
 
-    public static void addKilled(int killed){
+    public static synchronized void addKilled(int killed){
         killedIDs.add(killed);
     }
 

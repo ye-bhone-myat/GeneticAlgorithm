@@ -25,11 +25,11 @@ public class Tile implements Comparable{
         occupied = false;
     }
 
-    int getX(){
+    public int getX(){
         return x;
     }
 
-    int getY(){
+    public int getY(){
         return y;
     }
 
