@@ -154,14 +154,14 @@ public class GAApplication extends Application {
                 Platform.runLater(new tileColorSetter(r, finalLatch1));
                 generation = r.getGeneration();
                 score = r.getScore();
-                double durationSeconds = ((double) r.getDuration()) / 1000;
+                double durationSeconds = r.getDuration() / 1000000000.0;
                 int finalGeneration1 = generation;
                 int finalScore1 = score;
                 Platform.runLater(() -> {
                     text.setText("=== Completed ===\n"
                             + "Generation: " + finalGeneration1 + "\n"
                             + "Score: " + finalScore1 + "\n"
-                            + "Duration: " + durationSeconds + " seconds");
+                            + "Duration: " + String.format("%.5f", durationSeconds ) + " seconds");
                 });
 //                    System.out.println("Score: " + r.getScore());
 //                    System.out.println("Generation " + generation);

@@ -53,7 +53,7 @@ public class FloorsCallable implements Callable {
         if (debug) {
             sc = new Scanner(System.in);
         }
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         while (true) {
             if (debug) {
                 if (generation % 50 == 0) {
@@ -112,7 +112,7 @@ public class FloorsCallable implements Callable {
             }
 
         }
-        long duration = System.currentTimeMillis() - startTime;
+        long duration = System.nanoTime() - startTime;
         executor.shutdown();
         while (!executor.isTerminated()) {
 
